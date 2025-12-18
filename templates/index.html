@@ -15,7 +15,7 @@
     <header class="text-center mb-4">
         <img src="{{ url_for('static', filename='header.jpg') }}" alt="Breeza" class="header-img">
         <h1 class="mt-3 display-5">Agenda tu sesión de prueba Breeza</h1>
-        <p class="lead">3 dic 2025 → 30 ene 2026</p>
+        <p class="lead">{{ start_date.strftime('%d %b %Y') }} → {{ end_date.strftime('%d %b %Y') }}</p>
     </header>
 
     <div class="container">

@@ -1,6 +1,10 @@
-# Database
+.vercel
+.env*.local
+
+# Base de datos local
 mysql-data/
-*.sock
+data/*.db
+*.db
 
 # Python
 __pycache__/
@@ -10,17 +14,22 @@ __pycache__/
 .Python
 env/
 venv/
-*.egg-info/
-dist/
-build/
+ENV/
+.venv
+
+# Docker
+.dockerignore
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# Environment
-.env
-.env.local
-credentials.json
+*~

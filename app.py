@@ -55,14 +55,17 @@ SLOTS = [
 ]
 
 # === Fechas ===
-start_date = date(2025, 12, 3)
-end_date = date(2026, 1, 30)
-delta = timedelta(days=1)
-dates = []
-current = start_date
-while current <= end_date:
-    dates.append(current)
-    current += delta
+# Generar fechas desde hoy hasta 30 días adelante
+def get_dates():
+    start_date = date.today()
+    end_date = start_date + timedelta(days=30)
+    delta = timedelta(days=1)
+    dates = []
+    current = start_date
+    while current <= end_date:
+        dates.append(current)
+        current += delta
+    return dates, start_date, end_date
 
 # === Clima (One Call 3.0 - 8 días adelante) ===
 # === Clima (usando APIs gratuitas: forecast 5d/3h + UV forecast) ===
@@ -135,6 +138,10 @@ def get_weather_data():
 def index():
     logger.info("[INDEX] Iniciando renderizado de página principal")
     
+    # Generar fechas dinámicamente (hoy + 30 días)
+    dates, start_date, end_date = get_dates()
+    logger.info(f"[INDEX] Rango de fechas: {start_date} hasta {end_date} ({len(dates)} días)")
+    
     bookings = Booking.query.all()
     logger.info(f"[INDEX] Reservas encontradas en DB: {len(bookings)}")
     for b in bookings:
@@ -161,7 +168,9 @@ def index():
                            slots=SLOTS,
                            taken=taken,
                            weather_data=weather_data,
-                           uv_data=uv_data)
+                           uv_data=uv_data,
+                           start_date=start_date,
+                           end_date=end_date)
 
 @app.route('/book', methods=['POST'])
 def book():
@@ -262,12 +271,13 @@ def book():
 # Crear tabla al arrancar
 with app.app_context():
     db.create_all()
+    dates_init, start_init, end_init = get_dates()
     logger.info("[INIT] Aplicación iniciada")
     logger.info(f"[INIT] Configuración: WEATHER_API_KEY={'***' if WEATHER_API_KEY else 'NO CONFIGURADA'}")
     logger.info(f"[INIT] LAT={LAT}, LON={LON}, TIMEZONE={TIMEZONE}")
     logger.info(f"[INIT] CALENDAR_ID={'***' if CALENDAR_ID else 'NO CONFIGURADA'}")
     logger.info(f"[INIT] CREDENTIALS_FILE existe: {os.path.exists(CREDENTIALS_FILE)}")
-    logger.info(f"[INIT] Total de fechas disponibles: {len(dates)} (desde {dates[0]} hasta {dates[-1]})")
+    logger.info(f"[INIT] Total de fechas disponibles: {len(dates_init)} (desde {start_init} hasta {end_init})")
 
 if __name__ == '__main__':
     app.run(debug=True)

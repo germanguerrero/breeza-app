@@ -1,9 +1,7 @@
-version: '3.9'
-
 services:
   db:
     image: mysql:8.0
-    container_name: breeza_mysql
+    container_name: breeza-mysql
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: rootpass123
@@ -11,7 +9,7 @@ services:
       MYSQL_USER: breeza_user
       MYSQL_PASSWORD: breeza_pass_2025
     volumes:
-      - ./mysql-data:/var/lib/mysql   # ← Aquí quedan los datos PARA SIEMPRE
+      - ./mysql-data:/var/lib/mysql
     command: --default-authentication-plugin=mysql_native_password
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
@@ -20,8 +18,9 @@ services:
       retries: 3
 
   app:
-    build: .
-    container_name: breeza_app
+    #build: .
+    image: germanguerrero/breeza-app:latest
+    container_name: breeza-app
     restart: unless-stopped
     depends_on:
       db:
@@ -30,6 +29,8 @@ services:
       - WEATHER_API_KEY=b687e67032891f957e3eb4f4ee4d9753
       - CALENDAR_ID=c556ba951c27378e3eb4eb86c6b7f13ac7940f61688c2224831795fb4d4f9b9a@group.calendar.google.com
       - TIMEZONE=America/Argentina/Buenos_Aires
+      - LAT=-34.6037
+      - LON=-58.3816
     volumes:
       - ./credentials.json:/app/credentials.json
       - ./static:/app/static
