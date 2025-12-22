@@ -1,3 +1,5 @@
+version: '3.9'
+
 services:
   db:
     image: mysql:8.0
@@ -8,11 +10,8 @@ services:
       MYSQL_DATABASE: breeza_db
       MYSQL_USER: breeza_user
       MYSQL_PASSWORD: breeza_pass_2025
-    # Para Azure Container Instances, usar Azure File Share en lugar de volumes locales
-    # Nota: Necesitarás crear un Azure File Share y montarlo
-    # volumes:
-    #   - mysql-data:/var/lib/mysql
-    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - mysql-data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpass123"]
       interval: 10s
@@ -33,28 +32,29 @@ services:
       - TIMEZONE=America/Argentina/Buenos_Aires
       - LAT=-34.6037
       - LON=-58.3816
-      # Variable de conexión a la base de datos para Azure Container Instances
-      - DB_HOST=db
-      - DB_PORT=3306
-      - DB_NAME=breeza_db
-      - DB_USER=breeza_user
-      - DB_PASSWORD=breeza_pass_2025
-    # Para Azure Container Instances, los archivos deben estar en Azure File Share
-    # Necesitarás subir credentials.json y static/ a un Azure File Share
-    # volumes:
-    #   - azure-file-share-credentials:/app/credentials.json
-    #   - azure-file-share-static:/app/static
+      - DATABASE_URL=mysql+pymysql://breeza_user:breeza_pass_2025@localhost:3306/breeza_db
+    volumes:
+      - app-credentials:/app/credentials.json
+      - app-static:/app/static
     ports:
       - "5000:5000"
 
-# Nota: Para usar volumes en Azure Container Instances, necesitas:
-# 1. Crear un Azure Storage Account
-# 2. Crear un Azure File Share
-# 3. Subir los archivos necesarios (credentials.json, static/, mysql-data/)
-# 4. Montar el File Share usando la configuración de Azure Container Instances
-# 
-# Alternativamente, puedes:
-# - Incluir credentials.json en la imagen Docker (menos seguro)
-# - Usar Azure Key Vault para secretos
-# - Usar variables de entorno para configuración sensible
-
+volumes:
+  mysql-data:
+    driver: azure_file
+    driver_opts:
+      share_name: fs-breeza-mysql-data
+      storage_account_name: stbreezadata
+      storage_account_key: t5jdrzBnCqoOxHahTflNYBqtHu2pHGLpEHBfioWF5FsxkQ7owUH4w/iq9/kmRkjJQxo3ZWVpIM6Q+AStsB/aaQ==
+  app-credentials:
+    driver: azure_file
+    driver_opts:
+      share_name: fs-breeza-app-data
+      storage_account_name: stbreezadata
+      storage_account_key: t5jdrzBnCqoOxHahTflNYBqtHu2pHGLpEHBfioWF5FsxkQ7owUH4w/iq9/kmRkjJQxo3ZWVpIM6Q+AStsB/aaQ==
+  app-static:
+    driver: azure_file
+    driver_opts:
+      share_name: fs-breeza-app-data
+      storage_account_name: stbreezadata
+      storage_account_key: t5jdrzBnCqoOxHahTflNYBqtHu2pHGLpEHBfioWF5FsxkQ7owUH4w/iq9/kmRkjJQxo3ZWVpIM6Q+AStsB/aaQ==

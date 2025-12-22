@@ -18,8 +18,8 @@ services:
       retries: 3
 
   app:
-    #build: .
-    image: germanguerrero/breeza-app:latest
+    build: .
+    #image: germanguerrero/breeza-app:latest
     container_name: breeza-app
     restart: unless-stopped
     depends_on:
