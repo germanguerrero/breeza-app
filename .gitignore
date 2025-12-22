@@ -36,3 +36,6 @@ Thumbs.db
 
 # APP
 credentials.json
+
+# modules
+node_modules/
