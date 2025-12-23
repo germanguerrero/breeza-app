@@ -18,6 +18,12 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+    x-azure-deployment:
+      ingress:
+        external: false
+        targetPort: 3306
+        transport: tcp
+        allowInsecure: true
 
   app:
     image: germanguerrero/breeza-app:latest
@@ -32,7 +38,17 @@ services:
       - TIMEZONE=America/Argentina/Buenos_Aires
       - LAT=-34.6037
       - LON=-58.3816
-      - DATABASE_URL=mysql+pymysql://breeza_user:breeza_pass_2025@localhost:3306/breeza_db
+      # NOTA: En Azure Container Apps, los servicios se comunican usando el FQDN del Container App
+      # El formato es: <container-app-name>.<region>.azurecontainerapps.io
+      # Azure Container Apps inyectará automáticamente variables de entorno con los FQDNs
+      # Usaremos variables que se pueden configurar después del despliegue o usar el nombre del servicio
+      # Para desarrollo local, usa 'db', para Azure usa el FQDN completo
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=3306
+      - DB_NAME=breeza_db
+      - DB_USER=breeza_user
+      - DB_PASSWORD=breeza_pass_2025
+      # DATABASE_URL se construirá en app.py desde las variables individuales
     volumes:
       - app-credentials:/app/credentials.json
       - app-static:/app/static
@@ -52,7 +68,7 @@ volumes:
       share_name: fs-breeza-app-data
       storage_account_name: stbreezadata
       storage_account_key: t5jdrzBnCqoOxHahTflNYBqtHu2pHGLpEHBfioWF5FsxkQ7owUH4w/iq9/kmRkjJQxo3ZWVpIM6Q+AStsB/aaQ==
-  app-static:
+  app-static: 
     driver: azure_file
     driver_opts:
       share_name: fs-breeza-app-data

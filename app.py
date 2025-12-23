@@ -18,10 +18,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # === CONFIGURACIÓN ===
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
-    'DATABASE_URL', 
-    'mysql+pymysql://breeza_user:breeza_pass_2025@db:3306/breeza_db'
-)
+# Construir DATABASE_URL desde variables individuales o usar DATABASE_URL directamente
+# Prioridad: DATABASE_URL > variables individuales (DB_HOST, DB_PORT, etc.) > default
+if 'DATABASE_URL' in os.environ:
+    database_uri = os.environ.get('DATABASE_URL')
+else:
+    # Construir desde variables individuales si están disponibles
+    db_host = os.environ.get('DB_HOST', 'db')  # 'db' es el nombre del servicio en docker-compose
+    db_port = os.environ.get('DB_PORT', '3306')
+    db_name = os.environ.get('DB_NAME', 'breeza_db')
+    db_user = os.environ.get('DB_USER', 'breeza_user')
+    db_password = os.environ.get('DB_PASSWORD', 'breeza_pass_2025')
+    database_uri = f'mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}'
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
 
 
 
