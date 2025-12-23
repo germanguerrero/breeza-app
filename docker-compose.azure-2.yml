@@ -1,0 +1,84 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: breeza-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass123
+      MYSQL_DATABASE: breeza_db
+      MYSQL_USER: breeza_user
+      MYSQL_PASSWORD: breeza_pass_2025
+      MYSQL_AUTHENTICATION_PLUGIN: mysql_native_password
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpass123"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    x-azure-deployment:
+      ingress:
+        external: false
+        targetPort: 3306
+        transport: tcp
+        allowInsecure: true
+
+  app:
+    image: germanguerrero/dh-breeza:latest
+    container_name: breeza-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Variables de la aplicación
+      - WEATHER_API_KEY=b687e67032891f957e3eb4f4ee4d9753
+      - CALENDAR_ID=c556ba951c27378e3eb4eb86c6b7f13ac7940f61688c2224831795fb4d4f9b9a@group.calendar.google.com
+      - TIMEZONE=America/Argentina/Buenos_Aires
+      - LAT=-34.6037
+      - LON=-58.3816
+      # Variables de conexión a la base de datos
+      # Usando el FQDN interno de Azure Container Apps para comunicación entre servicios
+      # Formato: <service-name>.internal.<environment-name>.<region>.azurecontainerapps.io
+      - DB_HOST=db.internal.gentleflower-2dc849cd.eastus.azurecontainerapps.io
+      - DB_PORT=3306
+      - DB_NAME=breeza_db
+      - DB_USER=breeza_user
+      - DB_PASSWORD=breeza_pass_2025
+      # DATABASE_URL se construirá automáticamente en app.py desde estas variables
+    volumes:
+      - credentials-volume:/app/credentials.json:ro
+      - static-volume:/app/static
+    ports:
+      - "5000:5000"
+    x-azure-deployment:
+      ingress:
+        external: true
+        targetPort: 5000
+        transport: http
+        allowInsecure: false
+
+volumes:
+  mysql-data:
+    driver: azure_file
+    driver_opts:
+      share_name: fs-breeza-mysql-data
+      storage_account_name: stbreezadata
+      storage_account_key: t5jdrzBnCqoOxHahTflNYBqtHu2pHGLpEHBfioWF5FsxkQ7owUH4w/iq9/kmRkjJQxo3ZWVpIM6Q+AStsB/aaQ==
+  credentials-volume:
+    driver: azure_file
+    driver_opts:
+      share_name: fs-breeza-app-data
+      storage_account_name: stbreezadata
+      storage_account_key: t5jdrzBnCqoOxHahTflNYBqtHu2pHGLpEHBfioWF5FsxkQ7owUH4w/iq9/kmRkjJQxo3ZWVpIM6Q+AStsB/aaQ==
+  static-volume:
+    driver: azure_file
+    driver_opts:
+      share_name: fs-breeza-app-data
+      storage_account_name: stbreezadata
+      storage_account_key: t5jdrzBnCqoOxHahTflNYBqtHu2pHGLpEHBfioWF5FsxkQ7owUH4w/iq9/kmRkjJQxo3ZWVpIM6Q+AStsB/aaQ==
+
+# Nota: Las redes (networks) no son necesarias en Azure Container Apps
+# Azure Container Apps maneja la comunicación interna automáticamente
+# usando los FQDNs internos (.internal.azurecontainerapps.io)
