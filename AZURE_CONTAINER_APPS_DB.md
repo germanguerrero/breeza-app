@@ -1,6 +1,6 @@
 # Solución para conexión a MySQL en Azure Container Apps
 
-## Problema
+## Problema asasasasasasasas
 
 En Azure Container Apps, cuando usas `docker-compose`, cada servicio se despliega como un **Container App independiente**. A diferencia de Docker Compose local, **NO hay resolución DNS automática** por nombre de servicio.
 
