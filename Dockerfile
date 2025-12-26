@@ -21,4 +21,4 @@ RUN find . -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true && \
 
 EXPOSE 5000
 
-CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:5000", "--workers", "3"]
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:5000", "--workers", "3", "--timeout", "90"]

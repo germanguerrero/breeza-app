@@ -1,36 +1,36 @@
 services:
-  db:
-    image: mysql:8.0
-    container_name: breeza-mysql
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpass123
-      MYSQL_DATABASE: breeza_db
-      MYSQL_USER: breeza_user
-      MYSQL_PASSWORD: breeza_pass_2025
-      MYSQL_AUTHENTICATION_PLUGIN: mysql_native_password
-    volumes:
-      - mysql-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpass123"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-    x-azure-deployment:
-      ingress:
-        external: false
-        targetPort: 3306
-        transport: tcp
-        allowInsecure: true
+  # db:
+  #   image: mysql:8.0
+  #   container_name: breeza-mysql
+  #   restart: unless-stopped
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: rootpass123
+  #     MYSQL_DATABASE: breeza_db
+  #     MYSQL_USER: breeza_user
+  #     MYSQL_PASSWORD: breeza_pass_2025
+  #     MYSQL_AUTHENTICATION_PLUGIN: mysql_native_password
+  #   volumes:
+  #     - mysql-data:/var/lib/mysql
+  #   healthcheck:
+  #     test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpass123"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 3
+  #     start_period: 30s
+  #   x-azure-deployment:
+  #     ingress:
+  #       external: false
+  #       targetPort: 3306
+  #       transport: tcp
+  #       allowInsecure: true
 
   app:
-    image: germanguerrero/dh-breeza:latest
+    image: germanguerrero/dh-breeza:4.0
     container_name: breeza-app
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
+    # depends_on:
+    #   db:
+    #     condition: service_healthy
     environment:
       # Variables de la aplicación
       - WEATHER_API_KEY=b687e67032891f957e3eb4f4ee4d9753
@@ -41,11 +41,11 @@ services:
       # Variables de conexión a la base de datos
       # Usando el FQDN interno de Azure Container Apps para comunicación entre servicios
       # Formato: <service-name>.internal.<environment-name>.<region>.azurecontainerapps.io
-      - DB_HOST=db.internal.gentleflower-2dc849cd.eastus.azurecontainerapps.io
+      - DB_HOST=breeza-db.mysql.database.azure.com
       - DB_PORT=3306
-      - DB_NAME=breeza_db
-      - DB_USER=breeza_user
-      - DB_PASSWORD=breeza_pass_2025
+      - DB_NAME=breeza-db
+      - DB_USER=breeza_root
+      - DB_PASSWORD=has$asj12J
       # DATABASE_URL se construirá automáticamente en app.py desde estas variables
     volumes:
       - credentials-volume:/app/credentials.json:ro
@@ -58,6 +58,12 @@ services:
         targetPort: 5000
         transport: http
         allowInsecure: false
+    startupProbe:
+        httpGet:
+          path: /health
+          port: 5000
+        failureThreshold: 10
+        periodSeconds: 10
 
 volumes:
   mysql-data:

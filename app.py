@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request, flash, redirect, url_for
+from flask import Flask, render_template, request, flash, redirect, url_for, send_file, jsonify
+import base64
 from flask_sqlalchemy import SQLAlchemy
 from datetime import date, datetime, timedelta
 import requests
@@ -6,6 +7,8 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 import os
 import logging
+import io
+import uuid
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -143,7 +146,83 @@ def get_weather_data():
     return weather_cache, uv_cache
 
 
+# === Funciones auxiliares ===
+def generate_ics_content(booking_date, slot_info, name, email, phone, timezone, agenda_body):
+    """Genera el contenido del archivo .ICS para la cita usando el template de agenda_body.md"""
+    start_dt = datetime.combine(booking_date, datetime.strptime(slot_info['start'], "%H:%M").time())
+    end_dt = datetime.combine(booking_date, datetime.strptime(slot_info['end'], "%H:%M").time())
+    
+    # Formato iCalendar requiere fechas en formato UTC sin separadores
+    def format_ical_datetime(dt):
+        return dt.strftime('%Y%m%dT%H%M%S')
+    
+    # Generar UID único
+    uid = str(uuid.uuid4())
+    
+    # Escapar el contenido de la descripción para formato .ICS (reemplazar \n por \\n)
+    description_escaped = agenda_body.replace('\n', '\\n').replace(',', '\\,')
+    
+    # Crear contenido .ICS
+    ics_content = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Breeza//Cita Reservada//ES
+BEGIN:VEVENT
+UID:{uid}@breeza.german.com.ar
+DTSTART:{format_ical_datetime(start_dt)}
+DTEND:{format_ical_datetime(end_dt)}
+SUMMARY:Prueba Breeza - {name}
+DESCRIPTION:{description_escaped}
+LOCATION:Breeza
+STATUS:CONFIRMED
+SEQUENCE:0
+END:VEVENT
+END:VCALENDAR"""
+    
+    return ics_content
+
+def get_agenda_content(booking_date, slot_info, name, email, phone):
+    """Lee el template de agenda_body.md y reemplaza las variables con los datos de la cita"""
+    try:
+        # Leer el template desde agenda_body.md
+        if os.path.exists('agenda_body.md'):
+            with open('agenda_body.md', 'r', encoding='utf-8') as f:
+                template = f.read()
+        else:
+            # Si no existe, usar un template por defecto
+            logger.warning("[AGENDA] agenda_body.md no existe, usando template por defecto")
+            template = """Nombre: {name}
+Email: {email}
+Teléfono: {phone}
+Fecha: {date}
+Turno: {slot}
+Reservado desde breeza.german.com.ar"""
+        
+        # Reemplazar variables en el template
+        agenda_content = template.format(
+            name=name,
+            email=email,
+            phone=phone,
+            date=booking_date.strftime('%d/%m/%Y'),
+            slot=slot_info['label'],
+            booking_date=booking_date.strftime('%d/%m/%Y'),
+            slot_start=slot_info['start'],
+            slot_end=slot_info['end'],
+            slot_label=slot_info['label']
+        )
+        
+        logger.info(f"[AGENDA] Template cargado desde agenda_body.md")
+        return agenda_content
+    except Exception as e:
+        logger.error(f"[AGENDA] Error al leer agenda_body.md: {e}", exc_info=True)
+        # Retornar un contenido por defecto si hay error
+        return f"Nombre: {name}\nEmail: {email}\nTeléfono: {phone}\nTurno: {slot_info['label']}\nReservado desde breeza.german.com.ar"
+
+
 # === Rutas ===
+@app.route('/health')
+def health():
+    return 'OK', 200
+    
 @app.route('/')
 def index():
     logger.info("[INDEX] Iniciando renderizado de página principal")
@@ -187,6 +266,8 @@ def book():
     logger.info("[BOOK] Nueva solicitud de reserva recibida")
     logger.info(f"[BOOK] Datos del formulario: {dict(request.form)}")
     
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    
     try:
         booking_date = datetime.strptime(request.form['date'], '%Y-%m-%d').date()
         slot_num = int(request.form['slot'])
@@ -197,21 +278,29 @@ def book():
         logger.info(f"[BOOK] Datos parseados: fecha={booking_date}, slot={slot_num}, nombre={name}, email={email}, tel={phone}")
     except KeyError as e:
         logger.error(f"[BOOK] Campo faltante en formulario: {e}")
+        if is_ajax:
+            return jsonify({'success': False, 'message': 'Error: faltan datos en el formulario'}), 400
         flash('Error: faltan datos en el formulario', 'danger')
         return redirect(url_for('index'))
     except ValueError as e:
         logger.error(f"[BOOK] Error al parsear datos: {e}")
+        if is_ajax:
+            return jsonify({'success': False, 'message': 'Error: formato de datos inválido'}), 400
         flash('Error: formato de datos inválido', 'danger')
         return redirect(url_for('index'))
 
     if not all([name, email, phone]):
         logger.warning(f"[BOOK] Campos incompletos: name={bool(name)}, email={bool(email)}, phone={bool(phone)}")
+        if is_ajax:
+            return jsonify({'success': False, 'message': 'Todos los campos son obligatorios'}), 400
         flash('Todos los campos son obligatorios', 'danger')
         return redirect(url_for('index'))
 
     existing = Booking.query.filter_by(booking_date=booking_date, slot=slot_num).first()
     if existing:
         logger.warning(f"[BOOK] Turno ya ocupado: fecha={booking_date}, slot={slot_num}, por={existing.name}")
+        if is_ajax:
+            return jsonify({'success': False, 'message': 'Este turno ya está reservado'}), 400
         flash('Este turno ya está reservado', 'danger')
         return redirect(url_for('index'))
 
@@ -225,6 +314,8 @@ def book():
     except Exception as e:
         logger.error(f"[BOOK] Error al guardar en DB: {e}", exc_info=True)
         db.session.rollback()
+        if is_ajax:
+            return jsonify({'success': False, 'message': 'Error al guardar la reserva. Intenta nuevamente.'}), 500
         flash('Error al guardar la reserva. Intenta nuevamente.', 'danger')
         return redirect(url_for('index'))
 
@@ -236,13 +327,23 @@ def book():
     calendar_id = os.environ.get('CALENDAR_ID')
     if not calendar_id:
         logger.error("[GCAL] VARIABLE CALENDAR_ID NO CONFIGURADA EN DOCKER")
+        if is_ajax:
+            return jsonify({'success': False, 'message': 'Error interno: falta CALENDAR_ID'}), 500
         flash('Error interno: falta CALENDAR_ID', 'danger')
         return redirect(url_for('index'))
 
     if not os.path.exists(CREDENTIALS_FILE):
         logger.error("[GCAL] credentials.json NO ENCONTRADO")
+        if is_ajax:
+            return jsonify({'success': False, 'message': 'Error: credentials.json no encontrado'}), 500
         flash('Error: credentials.json no encontrado', 'danger')
         return redirect(url_for('index'))
+
+    # Obtener información del slot (necesario para ICS y agenda)
+    slot_info = SLOTS[slot_num - 1]
+
+    # Obtener el contenido del template de agenda_body.md
+    agenda_body = get_agenda_content(booking_date, slot_info, name, email, phone)
 
     try:
         logger.info(f"[GCAL] Usando Calendar ID directo: {calendar_id}")
@@ -251,14 +352,12 @@ def book():
             scopes=['https://www.googleapis.com/auth/calendar']
         )
         service = build('calendar', 'v3', credentials=credentials)
-
-        slot_info = SLOTS[slot_num - 1]
         start_dt = datetime.combine(booking_date, datetime.strptime(slot_info['start'], "%H:%M").time())
         end_dt = datetime.combine(booking_date, datetime.strptime(slot_info['end'], "%H:%M").time())
 
         event = {
             'summary': f'Prueba Breeza - {name}',
-            'description': f'Nombre: {name}\nEmail: {email}\nTeléfono: {phone}\nTurno: {slot_info["label"]}\nReservado desde breeza.german.com.ar',
+            'description': agenda_body,
             'start': {'dateTime': start_dt.isoformat(), 'timeZone': TIMEZONE},
             'end': {'dateTime': end_dt.isoformat(), 'timeZone': TIMEZONE},
             'reminders': {'useDefault': True},
@@ -270,13 +369,53 @@ def book():
         logger.info(f"[GCAL] ¡ÉXITO TOTAL! Evento creado → ID: {created_event['id']}")
         logger.info(f"[GCAL] Link: {created_event.get('htmlLink')}")
 
-        flash(f'¡Reservado perfectamente! {slot_info["label"]} - {booking_date.strftime("%d/%m/%Y")}', 'success')
+        success_message = f'¡Reservado perfectamente! {slot_info["label"]} - {booking_date.strftime("%d/%m/%Y")} - Puedes agregar la cita en tu agenda abriendo el archivo que se descargo... ;)'
+        flash(success_message, 'success')
+        gcal_success = True
 
     except Exception as e:
         logger.error(f"[GCAL] ERROR al crear evento: {e}", exc_info=True)
-        flash('Turno guardado en web, pero falló Google Calendar → ver logs', 'warning')
+        success_message = 'Turno guardado en web, pero falló Google Calendar → ver logs'
+        flash(success_message, 'warning')
+        gcal_success = False
 
-    return redirect(url_for('index'))
+    # Generar archivo .ICS
+    try:
+        ics_content = generate_ics_content(booking_date, slot_info, name, email, phone, TIMEZONE, agenda_body)
+        
+        # Nombre del archivo con fecha y nombre del cliente
+        filename = f"cita_breeza_{booking_date.strftime('%Y%m%d')}_{name.replace(' ', '_')}.ics"
+        
+        logger.info(f"[ICS] Generando archivo .ICS: {filename}")
+        
+        # Si es una petición AJAX, devolver JSON con el archivo
+        if is_ajax:
+            ics_base64 = base64.b64encode(ics_content.encode('utf-8')).decode('utf-8')
+            return jsonify({
+                'success': True,
+                'message': success_message,
+                'filename': filename,
+                'ics_content': ics_base64
+            })
+        else:
+            # Comportamiento normal: descargar directamente
+            ics_bytes = io.BytesIO(ics_content.encode('utf-8'))
+            return send_file(
+                ics_bytes,
+                mimetype='text/calendar',
+                as_attachment=True,
+                download_name=filename
+            )
+    except Exception as e:
+        logger.error(f"[ICS] Error al generar archivo .ICS: {e}", exc_info=True)
+        if is_ajax:
+            return jsonify({
+                'success': False,
+                'message': 'Cita guardada, pero hubo un error al generar el archivo .ICS'
+            }), 500
+        else:
+            flash('Cita guardada, pero hubo un error al generar el archivo .ICS', 'warning')
+            return redirect(url_for('index'))
 
 # Crear tabla al arrancar
 with app.app_context():
