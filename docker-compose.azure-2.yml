@@ -25,7 +25,7 @@ services:
   #       allowInsecure: true
 
   app:
-    image: germanguerrero/dh-breeza:4.0
+    image: germanguerrero/dh-breeza:6.0
     container_name: breeza-app
     restart: unless-stopped
     # depends_on:
@@ -44,8 +44,8 @@ services:
       - DB_HOST=breeza-db.mysql.database.azure.com
       - DB_PORT=3306
       - DB_NAME=breeza-db
-      - DB_USER=breeza_root
-      - DB_PASSWORD=has$asj12J
+      - DB_USER=breeza_user
+      - DB_PASSWORD=breeza_pass_2025
       # DATABASE_URL se construirá automáticamente en app.py desde estas variables
     volumes:
       - credentials-volume:/app/credentials.json:ro

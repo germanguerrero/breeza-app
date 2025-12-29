@@ -118,18 +118,18 @@ def get_weather_data():
                     daily_data[day]['descs'].append(item['weather'][0]['description'].capitalize())
                     daily_data[day]['icons'].append(item['weather'][0]['icon'])
 
-            # Agregar por día (promedio temp/nubosidad, desc/ícono más frecuente o del mediodía)
+            # Agregar por día (temp máxima, nubosidad mínima, desc/ícono más frecuente)
             for day, data in daily_data.items():
-                avg_temp = round(sum(data['temps']) / len(data['temps']))
-                avg_clouds = round(sum(data['clouds']) / len(data['clouds']))
+                max_temp = round(max(data['temps']))
+                min_clouds = round(min(data['clouds']))
                 
                 # Desc e ícono: el más común (o el primero si empate)
                 most_common_desc = max(set(data['descs']), key=data['descs'].count)
                 most_common_icon = max(set(data['icons']), key=data['icons'].count)
                 
                 weather_cache[day] = {
-                    'temp': avg_temp,
-                    'clouds': avg_clouds,
+                    'temp': max_temp,
+                    'clouds': min_clouds,
                     'desc': most_common_desc,
                     'icon': most_common_icon
                 }
@@ -167,10 +167,10 @@ def generate_ics_content(booking_date, slot_info, name, email, phone, timezone, 
 VERSION:2.0
 PRODID:-//Breeza//Cita Reservada//ES
 BEGIN:VEVENT
-UID:{uid}@breeza.german.com.ar
+UID:{uid}@breeza.me
 DTSTART:{format_ical_datetime(start_dt)}
 DTEND:{format_ical_datetime(end_dt)}
-SUMMARY:Prueba Breeza - {name}
+SUMMARY: Breeza - {name}
 DESCRIPTION:{description_escaped}
 LOCATION:Breeza
 STATUS:CONFIRMED
@@ -192,10 +192,11 @@ def get_agenda_content(booking_date, slot_info, name, email, phone):
             logger.warning("[AGENDA] agenda_body.md no existe, usando template por defecto")
             template = """Nombre: {name}
 Email: {email}
-Teléfono: {phone}
+Telefono: {phone}
 Fecha: {date}
 Turno: {slot}
-Reservado desde breeza.german.com.ar"""
+Lugar: Bolivar 5975, Villa Ballester.
+Reservado desde breeza.me"""
         
         # Reemplazar variables en el template
         agenda_content = template.format(
@@ -356,7 +357,7 @@ def book():
         end_dt = datetime.combine(booking_date, datetime.strptime(slot_info['end'], "%H:%M").time())
 
         event = {
-            'summary': f'Prueba Breeza - {name}',
+            'summary': f'Breeza - {name}',
             'description': agenda_body,
             'start': {'dateTime': start_dt.isoformat(), 'timeZone': TIMEZONE},
             'end': {'dateTime': end_dt.isoformat(), 'timeZone': TIMEZONE},
@@ -369,7 +370,7 @@ def book():
         logger.info(f"[GCAL] ¡ÉXITO TOTAL! Evento creado → ID: {created_event['id']}")
         logger.info(f"[GCAL] Link: {created_event.get('htmlLink')}")
 
-        success_message = f'¡Reservado perfectamente! {slot_info["label"]} - {booking_date.strftime("%d/%m/%Y")} - Puedes agregar la cita en tu agenda abriendo el archivo que se descargo... ;)'
+        success_message = f'¡Reservado perfectamente! {slot_info["label"]} - {booking_date.strftime("%d/%m/%Y")} - Puedes agregar la cita en tu agenda haciendo click aqui abajo  ;)'
         flash(success_message, 'success')
         gcal_success = True
 
@@ -388,14 +389,22 @@ def book():
         
         logger.info(f"[ICS] Generando archivo .ICS: {filename}")
         
-        # Si es una petición AJAX, devolver JSON con el archivo
+        # Si es una petición AJAX, devolver JSON con los datos de la reserva
         if is_ajax:
-            ics_base64 = base64.b64encode(ics_content.encode('utf-8')).decode('utf-8')
+            # Preparar datos para el enlace de calendario
+            start_dt = datetime.combine(booking_date, datetime.strptime(slot_info['start'], "%H:%M").time())
+            end_dt = datetime.combine(booking_date, datetime.strptime(slot_info['end'], "%H:%M").time())
+            
             return jsonify({
                 'success': True,
                 'message': success_message,
-                'filename': filename,
-                'ics_content': ics_base64
+                'booking_data': {
+                    'title': f'*** Prueba Breeza en la casa de Ger ***',
+                    'description': agenda_body,
+                    'location': 'https://maps.app.goo.gl/jxCDVLsYYqddZojN6',
+                    'start_datetime': start_dt.isoformat(),
+                    'end_datetime': end_dt.isoformat()
+                }
             })
         else:
             # Comportamiento normal: descargar directamente
