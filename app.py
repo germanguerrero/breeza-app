@@ -196,7 +196,15 @@ Telefono: {phone}
 Fecha: {date}
 Turno: {slot}
 Lugar: Bolivar 5975, Villa Ballester.
-Reservado desde breeza.me"""
+Reservado desde breeza.me
+
+Que tengo que llevar?
+- Ropa comoda, quizas un malla
+- Toalla
+- Protector solar
+- Lentes (fashion)   ;)
+
+"""
         
         # Reemplazar variables en el template
         agenda_content = template.format(
@@ -216,7 +224,7 @@ Reservado desde breeza.me"""
     except Exception as e:
         logger.error(f"[AGENDA] Error al leer agenda_body.md: {e}", exc_info=True)
         # Retornar un contenido por defecto si hay error
-        return f"Nombre: {name}\nEmail: {email}\nTeléfono: {phone}\nTurno: {slot_info['label']}\nReservado desde breeza.german.com.ar"
+        return f"Nombre: {name}\nEmail: {email}\nTeléfono: {phone}\nTurno: {slot_info['label']}\nReservado desde breeza.me"
 
 
 # === Rutas ===
